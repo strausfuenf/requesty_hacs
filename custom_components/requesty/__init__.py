@@ -1,5 +1,8 @@
 """Requesty AI Conversation integration."""
 
+import asyncio
+import importlib
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
