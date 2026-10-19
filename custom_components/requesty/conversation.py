@@ -6,16 +6,14 @@ import json
 import logging
 from typing import Literal
 
-import voluptuous as vol
-
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_LLM_HASS_API, CONF_PROMPT, MATCH_ALL
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.json import json_dumps
-from homeassistant.exceptions import HomeAssistantError
 
 from .api import RequestyClient, RequestyError
 from .const import (
@@ -30,19 +28,11 @@ _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 0
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Set up the Requesty conversation entity."""
-    async_add_entities([RequestyConversationEntity(hass, entry)])
-
-
 def _tool_schema(tool: llm.Tool, custom_serializer=None) -> dict:
-    """Convert a Home Assistant tool to OpenAI function format."""
+    """Convert a Home Assistant tool into the OpenAI-compatible function schema."""
     try:
         import probatio
+
         parameters = probatio.to_openapi(
             tool.parameters,
             custom_serializer=custom_serializer,
@@ -50,6 +40,7 @@ def _tool_schema(tool: llm.Tool, custom_serializer=None) -> dict:
         )
     except (ImportError, TypeError, ValueError):
         parameters = {"type": "object", "properties": {}}
+
     return {
         "type": "function",
         "function": {
@@ -60,43 +51,92 @@ def _tool_schema(tool: llm.Tool, custom_serializer=None) -> dict:
     }
 
 
+def _normalize_content(value) -> str:
+    """Normalize Requesty content payloads into a plain string."""
+    if value is None:
+        return ""
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if "text" in item and isinstance(item["text"], str):
+                    parts.append(item["text"])
+                elif "content" in item and isinstance(item["content"], str):
+                    parts.append(item["content"])
+        return "".join(parts)
+
+    if isinstance(value, dict):
+        for key in ("text", "content"):
+            item = value.get(key)
+            if isinstance(item, str):
+                return item
+        return json.dumps(value, ensure_ascii=False)
+
+    return str(value)
+
+
 def _content_to_messages(contents) -> list[dict]:
     """Convert Home Assistant chat log content to Chat Completions messages."""
     messages: list[dict] = []
+
     for item in contents:
         role = getattr(item, "role", None)
         content = getattr(item, "content", None)
         tool_calls = getattr(item, "tool_calls", None)
+
         if role in ("system", "user", "assistant") and content and not tool_calls:
-            messages.append({"role": role, "content": content})
+            messages.append({"role": role, "content": _normalize_content(content)})
 
         if role == "assistant" and tool_calls:
             calls = []
             for call in tool_calls:
-                calls.append({
-                    "id": call.id,
-                    "type": "function",
-                    "function": {
-                        "name": call.tool_name,
-                        "arguments": json.dumps(call.tool_args),
-                    },
-                })
-            # OpenAI requires the assistant tool-call message, including any content.
-            messages.append({
-                "role": "assistant",
-                "content": content,
-                "tool_calls": calls,
-            })
+                calls.append(
+                    {
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.tool_name,
+                            "arguments": json.dumps(call.tool_args),
+                        },
+                    }
+                )
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": _normalize_content(content),
+                    "tool_calls": calls,
+                }
+            )
 
         if isinstance(item, conversation.ToolResultContent):
             result = item.result
-            messages.append({
-                "role": "tool",
-                "tool_call_id": item.tool_call_id,
-                "content": json_dumps({"data": result.data, "error": result.error}),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": item.tool_call_id,
+                    "content": json_dumps(
+                        {"data": result.data, "error": result.error}
+                    ),
+                }
+            )
 
     return messages
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up the Requesty conversation entity."""
+    async_add_entities([RequestyConversationEntity(hass, entry)])
 
 
 class RequestyConversationEntity(
@@ -150,6 +190,7 @@ class RequestyConversationEntity(
     ) -> conversation.ConversationResult:
         """Handle a user message and execute supported HA tools."""
         settings = self._settings
+
         if settings.get(CONF_LLM_HASS_API, True):
             try:
                 await chat_log.async_provide_llm_data(
@@ -163,18 +204,22 @@ class RequestyConversationEntity(
 
         for _ in range(MAX_TOOL_ITERATIONS):
             messages = _content_to_messages(chat_log.content)
-            # The prompt is provided through async_provide_llm_data when HA tools are enabled.
+
             if not messages or messages[0].get("role") != "system":
-                messages.insert(0, {
-                    "role": "system",
-                    "content": settings.get(CONF_PROMPT, DEFAULT_PROMPT),
-                })
+                messages.insert(
+                    0,
+                    {
+                        "role": "system",
+                        "content": settings.get(CONF_PROMPT, DEFAULT_PROMPT),
+                    },
+                )
 
             payload = {
                 "model": settings[CONF_MODEL],
                 "messages": messages,
                 "max_tokens": 1024,
             }
+
             if chat_log.llm_api:
                 tools = [
                     _tool_schema(tool, chat_log.llm_api.custom_serializer)
@@ -193,8 +238,10 @@ class RequestyConversationEntity(
             choices = result.get("choices", [])
             if not choices:
                 raise HomeAssistantError("Requesty returned no response choices.")
-            message = choices[0].get("message", {})
-            text = message.get("content")
+
+            message = choices[0].get("message", {}) or {}
+            text = _normalize_content(message.get("content"))
+
             calls = message.get("tool_calls") or []
 
             if calls:
@@ -205,6 +252,7 @@ class RequestyConversationEntity(
                         arguments = json.loads(function.get("arguments") or "{}")
                     except json.JSONDecodeError:
                         arguments = {}
+
                     tool_inputs.append(
                         llm.ToolInput(
                             id=call.get("id", ""),
@@ -212,23 +260,24 @@ class RequestyConversationEntity(
                             tool_args=arguments,
                         )
                     )
+
                 chat_log.async_add_assistant_content(
                     conversation.AssistantContent(
                         content=text,
                         tool_calls=tool_inputs,
                     )
                 )
-                # Home Assistant executes tool calls when assistant content is appended.
+
                 if not chat_log.unresponded_tool_results:
                     break
+
                 continue
+
             chat_log.async_add_assistant_content(
-                conversation.AssistantContent(
-                    agent_id=self.entity_id,
-                    content=text or "",
-                )
+                conversation.AssistantContent(content=text or "")
             )
             break
+
         else:
             _LOGGER.warning("Requesty reached maximum tool-call iterations.")
 
