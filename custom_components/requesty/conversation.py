@@ -263,6 +263,7 @@ class RequestyConversationEntity(
 
                 chat_log.async_add_assistant_content(
                     conversation.AssistantContent(
+                        agent_id=self.entity_id,
                         content=text,
                         tool_calls=tool_inputs,
                     )
@@ -274,7 +275,10 @@ class RequestyConversationEntity(
                 continue
 
             chat_log.async_add_assistant_content(
-                conversation.AssistantContent(content=text or "")
+                conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=text or "",
+                )
             )
             break
 
