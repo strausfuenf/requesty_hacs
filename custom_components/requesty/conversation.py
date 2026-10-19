@@ -234,7 +234,8 @@ class RequestyConversationEntity(
             except RequestyError as err:
                 _LOGGER.error("Requesty API request failed: %s", err)
                 raise HomeAssistantError("Requesty API request failed.") from err
-
+            
+            _LOGGER.debug("Requesty raw completion result: %s", result)
             choices = result.get("choices", [])
             if not choices:
                 raise HomeAssistantError("Requesty returned no response choices.")
