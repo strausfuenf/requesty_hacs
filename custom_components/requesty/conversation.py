@@ -256,12 +256,15 @@ class RequestyConversationEntity(
                 )
                 text = "I could not generate a response."
 
+
             if calls:
                 tool_inputs = []
                 for call in calls:
                     function = call.get("function", {})
                     try:
-                        arguments = json.loads(function.get("arguments") or "{}")
+                        arguments = json.loads(
+                            function.get("arguments") or "{}"
+                        )
                     except json.JSONDecodeError:
                         arguments = {}
 
@@ -273,26 +276,30 @@ class RequestyConversationEntity(
                         )
                     )
 
-                chat_log.async_add_assistant_content(
-                    conversation.AssistantContent(
-                        agent_id=self.entity_id,
-                        content=text or "I could not generate a response.",
-                        tool_calls=tool_inputs,
-                    )
+                assistant_content = conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=text or None,
+                    tool_calls=tool_inputs,
                 )
+
+                async for _ in chat_log.async_add_assistant_content(
+                    assistant_content
+                ):
+                    pass
 
                 if not chat_log.unresponded_tool_results:
                     break
 
                 continue
 
-            chat_log.async_add_assistant_content(
+            chat_log.async_add_assistant_content_without_tools(
                 conversation.AssistantContent(
                     agent_id=self.entity_id,
                     content=text or "I could not generate a response.",
                 )
             )
             break
+
 
         else:
             _LOGGER.warning("Requesty reached maximum tool-call iterations.")
