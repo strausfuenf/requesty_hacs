@@ -1,7 +1,7 @@
 {
   "domain": "requesty",
   "name": "Requesty AI Conversation",
-  "codeowners": [],
+  "codeowners": [@strausfuenf],
   "config_flow": true,
   "documentation": "https://forgejo.schn-urr.eu/stefan/Homeassistant_Requesty.ai_HACS",
   "iot_class": "cloud_polling",
