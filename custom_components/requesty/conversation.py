@@ -221,13 +221,12 @@ class RequestyConversationEntity(
                 if not chat_log.unresponded_tool_results:
                     break
                 continue
-
-chat_log.async_add_assistant_content(
-    conversation.AssistantContent(
-        agent_id=self.entity_id,
-        content=text or "",
-    )
-)
+            chat_log.async_add_assistant_content(
+                conversation.AssistantContent(
+                    agent_id=self.entity_id,
+                    content=text or "",
+                )
+            )
             break
         else:
             _LOGGER.warning("Requesty reached maximum tool-call iterations.")
