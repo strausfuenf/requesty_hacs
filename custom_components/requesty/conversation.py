@@ -173,6 +173,7 @@ class RequestyConversationEntity(
             payload = {
                 "model": settings[CONF_MODEL],
                 "messages": messages,
+                "max_tokens": 1024,
             }
             if chat_log.llm_api:
                 tools = [
