@@ -1,0 +1,10 @@
+{
+  "domain": "requesty",
+  "name": "Requesty AI Conversation",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/YOUR_GITHUB_USER/ha-requesty",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "0.1.0"
+}

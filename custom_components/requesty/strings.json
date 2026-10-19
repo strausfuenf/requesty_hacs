@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Requesty",
+        "description": "Enter your Requesty API key. The integration will retrieve the models available to this key.",
+        "data": {
+          "api_key": "Requesty API key"
+        }
+      },
+      "model": {
+        "title": "Choose a model",
+        "description": "Choose a model exposed by your Requesty API key.",
+        "data": {
+          "model": "Model",
+          "name": "Name",
+          "prompt": "System prompt",
+          "llm_hass_api": "Allow Home Assistant device control"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Requesty. Check the API key and network connection.",
+      "no_models": "Requesty returned no models for this API key."
+    },
+    "abort": {
+      "already_configured": "Requesty is already configured.",
+      "unknown": "Unknown setup state."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Requesty options",
+        "data": {
+          "model": "Model",
+          "prompt": "System prompt",
+          "llm_hass_api": "Allow Home Assistant device control"
+        }
+      }
+    },
+    "abort": {
+      "cannot_connect": "Could not retrieve the model list."
+    }
+  }
+}
