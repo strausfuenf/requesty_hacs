@@ -65,10 +65,13 @@ def _normalize_content(value) -> str:
             if isinstance(item, str):
                 parts.append(item)
             elif isinstance(item, dict):
-                if "text" in item and isinstance(item["text"], str):
-                    parts.append(item["text"])
-                elif "content" in item and isinstance(item["content"], str):
-                    parts.append(item["content"])
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                else:
+                    content = item.get("content")
+                    if isinstance(content, str):
+                        parts.append(content)
         return "".join(parts)
 
     if isinstance(value, dict):
@@ -234,16 +237,24 @@ class RequestyConversationEntity(
             except RequestyError as err:
                 _LOGGER.error("Requesty API request failed: %s", err)
                 raise HomeAssistantError("Requesty API request failed.") from err
-            
+
             _LOGGER.debug("Requesty raw completion result: %s", result)
+
             choices = result.get("choices", [])
             if not choices:
+                _LOGGER.warning("Requesty returned no choices: %s", result)
                 raise HomeAssistantError("Requesty returned no response choices.")
 
             message = choices[0].get("message", {}) or {}
             text = _normalize_content(message.get("content"))
-
             calls = message.get("tool_calls") or []
+
+            if not text and not calls:
+                _LOGGER.warning(
+                    "Requesty returned empty response. Raw message: %s",
+                    message,
+                )
+                text = "I could not generate a response."
 
             if calls:
                 tool_inputs = []
@@ -265,7 +276,7 @@ class RequestyConversationEntity(
                 chat_log.async_add_assistant_content(
                     conversation.AssistantContent(
                         agent_id=self.entity_id,
-                        content=text,
+                        content=text or "I could not generate a response.",
                         tool_calls=tool_inputs,
                     )
                 )
@@ -278,7 +289,7 @@ class RequestyConversationEntity(
             chat_log.async_add_assistant_content(
                 conversation.AssistantContent(
                     agent_id=self.entity_id,
-                    content=text or "",
+                    content=text or "I could not generate a response.",
                 )
             )
             break
