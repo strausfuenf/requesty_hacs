@@ -6,5 +6,5 @@
   "documentation": "https://forgejo.schn-urr.eu/stefan/Homeassistant_Requesty.ai_HACS",
   "iot_class": "cloud_polling",
   "requirements": [],
-  "version": "0.1.0"
+  "version": "0.1.1"
 }
