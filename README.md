@@ -1,3 +1,7 @@
+## AI Disclosure
+Readme was designed with Copilot.
+Code is from me assisted by Copilot. Mainly for Comments and refactoring
+
 # Requesty AI Conversation for Home Assistant
 
 A custom Home Assistant conversation agent that uses [Requesty](https://requesty.ai)'s OpenAI-compatible API. It supports model discovery from `GET /v1/models`, text conversations, and Home Assistant LLM tool calling for device control.
